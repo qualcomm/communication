@@ -131,7 +131,8 @@ cc_library(
     hdrs = ["skeleton_event_tracing.h"],
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
-    visibility = ["//score/mw/com/impl:__subpackages__"],
+    visibility = ["//score/mw/com:__subpackages__",
+                "//score/mw/com/impl:__subpackages__"],
     deps = [
         ":common_event_tracing",
         ":skeleton_event_tracing_data",
@@ -153,7 +154,8 @@ cc_library(
     hdrs = ["proxy_event_tracing.h"],
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
-    visibility = ["//score/mw/com/impl:__subpackages__"],
+    visibility = ["//score/mw/com:__subpackages__",
+                "//score/mw/com/impl:__subpackages__"],
     deps = [
         ":common_event_tracing",
         ":proxy_event_tracing_data",
@@ -226,7 +228,8 @@ cc_library(
         "@score_baselibs//score/memory/shared:pointer_arithmetic_util",
     ],
     tags = ["FFI"],
-    visibility = ["//score/mw/com/impl:__subpackages__"],
+    visibility = ["//score/mw/com:__subpackages__",
+                  "//score/mw/com/impl:__subpackages__"],
     deps = [
         ":i_binding_tracing_runtime",
         ":i_tracing_runtime",

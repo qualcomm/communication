@@ -305,6 +305,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
+        "//score/mw/com:__subpackages__",
         "//score/mw/com/impl/tracing:__subpackages__",
     ],
     deps = [
@@ -324,6 +325,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
+        "//score/mw/com:__subpackages__",
         "//score/mw/com/impl/tracing:__subpackages__",
     ],
     deps = [
@@ -343,6 +345,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
+        "//score/mw/com:__subpackages__",   
         "//score/mw/com/impl/methods:__pkg__",
         "//score/mw/com/impl/mocking:__pkg__",
         "//score/mw/com/impl/plumbing:__pkg__",
@@ -398,6 +401,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
+        "//score/mw/com:__subpackages__",
         "//score/mw/com/impl:__subpackages__",
     ],
     deps = [
@@ -423,6 +427,7 @@ cc_library(
     ],
     tags = ["FFI"],
     visibility = [
+        "//score/mw/com:__subpackages__",
         "//score/mw/com/impl:__pkg__",
         "//score/mw/com/impl/rust:__pkg__",
     ],
@@ -461,6 +466,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
+        "//score/mw/com:__subpackages__",
         "//score/mw/com/impl/bindings/lola:__pkg__",
         "//score/mw/com/impl/bindings/mock_binding:__pkg__",
         "//score/mw/com/impl/plumbing:__subpackages__",
@@ -488,6 +494,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
+        "//score/mw/com:__subpackages__",
         "//score/mw/com/impl/bindings/lola:__pkg__",
         "//score/mw/com/impl/bindings/mock_binding:__pkg__",
         "//score/mw/com/impl/plumbing:__subpackages__",
@@ -513,6 +520,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
+        "//score/mw/com:__subpackages__",
         "//score/mw/com/impl/bindings/lola:__pkg__",
         "//score/mw/com/impl/bindings/mock_binding:__pkg__",
         "//score/mw/com/impl/plumbing:__subpackages__",
@@ -537,6 +545,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
+        "//score/mw/com:__subpackages__",
         "//score/mw/com/impl/bindings/lola:__pkg__",
         "//score/mw/com/impl/bindings/mock_binding:__pkg__",
         "//score/mw/com/impl/plumbing:__subpackages__",
@@ -566,6 +575,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
+        "//score/mw/com:__subpackages__",
         "//score/mw/com/impl/bindings/lola:__pkg__",
         "//score/mw/com/impl/bindings/mock_binding:__pkg__",
         "//score/mw/com/impl/plumbing:__subpackages__",
@@ -589,7 +599,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
-        "//score/mw/com/impl:__subpackages__",
+        "//score/mw/com:__subpackages__",
     ],
     deps = [
         ":instance_identifier",
@@ -605,7 +615,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
-        "//score/mw/com/impl:__subpackages__",
+        "//score/mw/com:__subpackages__",
     ],
     deps = [
         ":error",
@@ -620,7 +630,7 @@ cc_library(
     features = COMPILER_WARNING_FEATURES,
     tags = ["FFI"],
     visibility = [
-        "//score/mw/com/impl:__subpackages__",
+        "//score/mw/com:__subpackages__",
     ],
     deps = [
         ":handle_type",
