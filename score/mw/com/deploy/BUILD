@@ -53,6 +53,14 @@ config_setting(
     ],
 )
 
+# Config setting for Android GVM (aarch64)
+config_setting(
+    name = "android_aarch64",
+    constraint_values = [
+        "@platforms//os:android",
+        "@platforms//cpu:aarch64",
+    ],
+)
 # ============================================================================
 # Dynamic Library Configuration
 # ============================================================================
@@ -204,6 +212,16 @@ EOF
     visibility = ["//visibility:public"],
 )
 
+# Provides weak __hash_memory symbol missing from Android's libc++ (aarch64).
+cc_library(
+    name = "libcxx_android_compat",
+    srcs = select({
+        "@platforms//os:android": ["libcxx_android_compat.cpp"],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:public"],
+)
 
 # Shared library for deployment containing all COM functionality
 # This bundles all communication middleware code into a single .so
@@ -215,7 +233,10 @@ cc_shared_library(
     visibility = ["//visibility:public"],
     deps = [
         ":com_all_deps",  
-    ],
+    ] + select({
+        "@platforms//os:android": [":libcxx_android_compat"],
+        "//conditions:default": [],
+    }),
     # Specify which dependencies should be linked dynamically
     # Empty list means ALL dependencies are statically linked into the shared library
     dynamic_deps = [],
@@ -262,6 +283,10 @@ cc_shared_library(
             "-Wl,--allow-multiple-definition",  # Allow duplicate symbols (choose first)
             "-static-libgcc",
             "-static-libstdc++",
+        ],
+        ":android_aarch64": [
+            "-Wl,-soname,libscore_communication.so",
+            "-Wl,--allow-multiple-definition",
         ],
         "//conditions:default": [],
     }),
