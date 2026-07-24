@@ -44,16 +44,16 @@ bool IsShortNameValid(const std::string_view shortname) noexcept
 
     auto validate_chars = [](auto it_begin, auto it_end, const bool first_char) -> bool {
         const auto found_invalid_chars = std::find_if_not(it_begin, it_end, [first_char](const auto curent_char) {
-            const auto u_ch = static_cast<unsigned char>(curent_char);
+            const auto u_ch = static_cast<unsigned char>(curent_char);  // parasoft-suppress MISRACPP2023-7_0_3-a "D-025: deviation - char->unsigned char cast is the required precondition for <cctype>; mirrors upstream coverity[autosar_cpp14_m5_0_3_violation]"
             // Suppress "AUTOSAR C++14 M5-0-3" and  "AUTOSAR C++14 M5-0-4" rules, which state: "A cvalue expression
             // shall not be implicitly converted to a different underlying type." and "An implicit integral conversion
             // shall not change the signedness of the underlying type." respectively Rationale: This is tolerated as
             // static_cast from int to bool will not change the signedness and the type convertion is intended
             // coverity[autosar_cpp14_m5_0_3_violation]
             // coverity[autosar_cpp14_m5_0_4_violation]
-            const auto is_alpha_or_num = first_char ? std::isalpha(u_ch) : std::isalnum(u_ch);
+            const auto is_alpha_or_num = first_char ? std::isalpha(u_ch) : std::isalnum(u_ch);  // parasoft-suppress MISRACPP2023-24_5_1-a MISRACPP2023-7_0_6-a "D-026: deviation - <cctype> used to validate ApplicationId shortnames; input pre-sanitised to unsigned char (D-025); locale-independent under default C locale; unsigned char->int conversion is the <cctype> API contract (covers D-026..D-029)"
             // coverity[autosar_cpp14_a5_2_6_violation: FALSE] False positive: each operand is parenthesized
-            return ((static_cast<bool>(is_alpha_or_num)) || (curent_char == '_') || (curent_char == '/'));
+            return ((static_cast<bool>(is_alpha_or_num)) || (curent_char == '_') || (curent_char == '/'));  // parasoft-suppress MISRACPP2023-7_0_2-a "D-030: false positive - explicit static_cast<bool>; rule targets implicit conversions; mirrors upstream coverity[autosar_cpp14_a5_2_6_violation: FALSE]"
         });
         return found_invalid_chars == it_end;
     };

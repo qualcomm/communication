@@ -41,7 +41,7 @@ void ApplicationIdPidMappingEntry::SetStatusAndApplicationIdAtomic(MappingEntryS
 ApplicationIdPidMappingEntry::key_type ApplicationIdPidMappingEntry::CreateKey(MappingEntryStatus status,
                                                                                std::uint32_t application_id) noexcept
 {
-    ApplicationIdPidMappingEntry::key_type result = static_cast<std::uint16_t>(status);
+    ApplicationIdPidMappingEntry::key_type result = static_cast<std::uint16_t>(status);  // parasoft-suppress MISRACPP2023-7_0_6-a "D-020: deviation - implicit uint16->uint64 widening at initialization; MappingEntryStatus fits in 16 bits; no information loss (bits 48-63 zero by construction)"
     result = result << 32U;
     result |= static_cast<std::uint64_t>(application_id);
     return result;

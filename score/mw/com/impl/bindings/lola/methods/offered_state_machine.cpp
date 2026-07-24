@@ -27,12 +27,12 @@ OfferedStateMachine::OfferedStateMachine()
 
 void OfferedStateMachine::Offer()
 {
-    current_state_ = states_.at(static_cast<std::uint8_t>(current_state_))->Offer();
+    current_state_ = states_.at(static_cast<std::uint8_t>(current_state_))->Offer();  // parasoft-suppress MISRACPP2023-7_0_6-a "D-021: deviation - widening uint8_t -> std::array::size_type, no narrowing"
 }
 
 void OfferedStateMachine::StopOffer()
 {
-    current_state_ = states_.at(static_cast<std::uint8_t>(current_state_))->StopOffer();
+    current_state_ = states_.at(static_cast<std::uint8_t>(current_state_))->StopOffer();  // parasoft-suppress MISRACPP2023-7_0_6-a "D-022: false positive - same rationale as D-021"
 }
 
 namespace detail
@@ -55,12 +55,12 @@ OfferedStateMachine::State StopOfferedState::Offer()
 
 OfferedStateMachine::State StopOfferedState::StopOffer()
 {
-    SCORE_LANGUAGE_FUTURECPP_ASSERT_PRD(0);
+    SCORE_LANGUAGE_FUTURECPP_ASSERT_PRD(0);  // parasoft-suppress MISRACPP2023-7_0_2-a "D-023: deviation - SCORE_LANGUAGE_FUTURECPP_ASSERT_PRD literal 0 coerced to bool inside the assertion macro is the project assertion idiom"
 }
 
 OfferedStateMachine::State ReOfferedState::Offer()
 {
-    SCORE_LANGUAGE_FUTURECPP_ASSERT_PRD(0);
+    SCORE_LANGUAGE_FUTURECPP_ASSERT_PRD(0);  // parasoft-suppress MISRACPP2023-7_0_2-a "D-024: same rationale as D-023"
 }
 
 OfferedStateMachine::State ReOfferedState::StopOffer()
