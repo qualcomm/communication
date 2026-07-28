@@ -27,7 +27,7 @@ LoggingCallback GetCerrLogger()
         {
             std::visit(
                 [](auto&& arg) {
-                    std::cerr << arg;
+                    std::cerr << arg;  // parasoft-suppress MISRACPP2023-28_6_2-a "D-019: deviation - operator<< overload set is insensitive to the value category of arg; forwarding has no observable effect for stream insertion of variant alternatives"
                 },
                 item);
         }
