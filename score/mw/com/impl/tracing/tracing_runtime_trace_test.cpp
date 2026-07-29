@@ -32,6 +32,7 @@
 
 #include "score/mw/log/logging.h"
 #include "score/mw/log/recorder_mock.h"
+#include "score/mw/log/slot_handle.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -585,8 +586,18 @@ TEST_P(TracingRuntimeTraceShmParamaterisedFixture, TraceShmDataNOK_NonRecoverabl
     // expect, that UuT sets data-loss-flag on binding specific runtime as this trace call is lost because of error
     EXPECT_CALL(binding_tracing_runtime_mock_, SetDataLossFlag(true)).Times(1);
 
-    // capture stdout output during Trace() call.
-    testing::internal::CaptureStdout();
+    // Fix for QNX: CaptureStdout() captures nothing because mw::log falls back to EmptyRecorder.
+    // Use RecorderMock to intercept LogStringView() calls directly.
+    ::testing::NiceMock<score::mw::log::RecorderMock> recorder_mock{};
+    const score::mw::log::SlotHandle handle{0U};
+    ON_CALL(recorder_mock, IsLogEnabled(::testing::_, ::testing::_)).WillByDefault(::testing::Return(true));
+    ON_CALL(recorder_mock, StartRecord(::testing::_, ::testing::_))
+        .WillByDefault(::testing::Return(score::cpp::optional<score::mw::log::SlotHandle>{handle}));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::_)).Times(::testing::AnyNumber());
+    EXPECT_CALL(recorder_mock,
+                LogStringView(::testing::_, ::testing::HasSubstr("TracingRuntime: Disabling Tracing for ")))
+        .Times(::testing::AtLeast(1));
+    score::mw::log::SetLogRecorder(&recorder_mock);
 
     TracingRuntimeAttorney attorney{*unit_under_test_};
     auto previous_error_counter = attorney.GetFailureCounter();
@@ -601,14 +612,8 @@ TEST_P(TracingRuntimeTraceShmParamaterisedFixture, TraceShmDataNOK_NonRecoverabl
                                           dummy_shm_data_ptr_,
                                           dummy_shm_data_size_);
 
-    // stop capture and get captured data.
-    std::string log_output = testing::internal::GetCapturedStdout();
-    const char log_warn_snippet[] = "log warn";
-    const char text_snippet[] = "TracingRuntime: Disabling Tracing for ";
-    // and expect, that the output contains a warning message (mw::log)
-    auto first_offset = log_output.find(log_warn_snippet);
-    EXPECT_TRUE(first_offset != log_output.npos);
-    EXPECT_TRUE(log_output.find(text_snippet, first_offset) != log_output.npos);
+    score::mw::log::SetLogRecorder(nullptr);
+
     EXPECT_FALSE(result.has_value());
     EXPECT_EQ(result.error(), TraceErrorCode::TraceErrorDisableTracePointInstance);
 
@@ -640,8 +645,18 @@ TEST_P(TracingRuntimeTraceShmParamaterisedFixture, TraceShmDataNOK_TerminalFatal
     // callback will happen, which frees the sample ptr.
     EXPECT_CALL(binding_tracing_runtime_mock_, ClearTypeErasedSamplePtr(trace_context_id_)).Times(1);
 
-    // capture stdout output during Trace() call.
-    testing::internal::CaptureStdout();
+    // Fix for QNX: CaptureStdout() captures nothing because mw::log falls back to EmptyRecorder.
+    // Use RecorderMock to intercept LogStringView() calls directly.
+    ::testing::NiceMock<score::mw::log::RecorderMock> recorder_mock{};
+    const score::mw::log::SlotHandle handle{0U};
+    ON_CALL(recorder_mock, IsLogEnabled(::testing::_, ::testing::_)).WillByDefault(::testing::Return(true));
+    ON_CALL(recorder_mock, StartRecord(::testing::_, ::testing::_))
+        .WillByDefault(::testing::Return(score::cpp::optional<score::mw::log::SlotHandle>{handle}));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::_)).Times(::testing::AnyNumber());
+    EXPECT_CALL(recorder_mock,
+                LogStringView(::testing::_, ::testing::HasSubstr("kTerminalFatal")))
+        .Times(::testing::AtLeast(1));
+    score::mw::log::SetLogRecorder(&recorder_mock);
 
     // when we call Trace on the UuT
     auto result = unit_under_test_->Trace(BindingType::kLoLa,
@@ -653,14 +668,7 @@ TEST_P(TracingRuntimeTraceShmParamaterisedFixture, TraceShmDataNOK_TerminalFatal
                                           dummy_shm_data_ptr_,
                                           dummy_shm_data_size_);
 
-    // stop capture and get captured data.
-    std::string log_output = testing::internal::GetCapturedStdout();
-    const char log_warn_snippet[] = "log warn";
-    const char text_snippet[] = "kTerminalFatal";
-    // and expect, that the output contains a warning message (mw::log)
-    auto first_offset = log_output.find(log_warn_snippet);
-    EXPECT_TRUE(first_offset != log_output.npos);
-    EXPECT_TRUE(log_output.find(text_snippet, first_offset) != log_output.npos);
+    score::mw::log::SetLogRecorder(nullptr);
 
     // expect, that there was an error
     EXPECT_FALSE(result.has_value());

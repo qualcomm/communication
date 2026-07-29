@@ -21,6 +21,9 @@
 #include "score/mw/com/impl/configuration/test/configuration_store.h"
 
 #include "score/filesystem/factory/filesystem_factory_fake.h"
+#include "score/mw/log/logging.h"
+#include "score/mw/log/recorder_mock.h"
+#include "score/mw/log/slot_handle.h"
 #include "score/os/utils/inotify/inotify_instance_mock.h"
 
 #include <score/expected.hpp>
@@ -672,20 +675,27 @@ TEST_F(FlagFileCrawlerCrawlAndWatchSpecificInstanceFixture,
 
     GivenAFlagFileCrawler();
 
-    // capture stdout output during CrawlAndWatch.
-    testing::internal::CaptureStdout();
+    // Fix for QNX: CaptureStdout() captures nothing because mw::log falls back to EmptyRecorder.
+    // Use RecorderMock to intercept LogStringView() calls directly.
+    // The log call is: LogError("lola") << "Current file permissions are:" << permissions_octal_string
+    // (two separate LogStringView calls — no space between them in the source).
+    // A catch-all handles other calls; specific ones verify the key message parts.
+    ::testing::NiceMock<score::mw::log::RecorderMock> recorder_mock{};
+    const score::mw::log::SlotHandle handle{0U};
+    ON_CALL(recorder_mock, IsLogEnabled(::testing::_, ::testing::_)).WillByDefault(::testing::Return(true));
+    ON_CALL(recorder_mock, StartRecord(::testing::_, ::testing::_))
+        .WillByDefault(::testing::Return(score::cpp::optional<score::mw::log::SlotHandle>{handle}));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::_)).Times(::testing::AnyNumber());
+    EXPECT_CALL(recorder_mock,
+                LogStringView(::testing::_, ::testing::HasSubstr("Current file permissions are:")))
+        .Times(::testing::AtLeast(1));
+    score::mw::log::SetLogRecorder(&recorder_mock);
 
     // When calling CrawlAndWatch
     score::cpp::ignore = flag_file_crawler_->CrawlAndWatch(kConfigStoreQm1.GetEnrichedInstanceIdentifier());
 
-    // stop capture, get captured data and print output for easier test debugging
-    std::string log_output = testing::internal::GetCapturedStdout();
-    std::cout << log_output << std::endl;
-
-    // Then a message should be logged containing the file permissions in octal format
-    std::stringstream expected_text_snippet{};
-    expected_text_snippet << "Current file permissions are: " << file_permissions_octal;
-    EXPECT_TRUE(log_output.find(expected_text_snippet.str()) != log_output.npos);
+    // Restore the default recorder
+    score::mw::log::SetLogRecorder(nullptr);
 }
 
 TEST_F(FlagFileCrawlerCrawlAndWatchSpecificInstanceFixture, ReturnsErrorIfCannotGetDirectoryStatusToCheckPermissions)

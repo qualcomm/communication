@@ -16,6 +16,8 @@
 #include "score/mw/com/impl/configuration/lola_service_element_id.h"
 
 #include "score/mw/log/logging.h"
+#include "score/mw/log/recorder_mock.h"
+#include "score/mw/log/slot_handle.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -140,16 +142,52 @@ TEST(ProxyMethodInstanceIdentifierTest, OperatorStreamOutputsExpectedString)
     // Given a ProxyMethodInstanceIdentifier
     const ProxyMethodInstanceIdentifier unit{{kDummyProcessIdentifier, kDummyProxyInstanceCounter},
                                              kDummyUniqueMethodIdentifier};
-    testing::internal::CaptureStdout();
+
+    // Fix for QNX: On QNX the mw::log framework cannot find a valid log mode configuration and falls back to
+    // EmptyRecorder (error: "Unsupported LogMode encountered in the RecorderFactory, using EmptyRecorder instead").
+    // EmptyRecorder discards all output, so testing::internal::CaptureStdout() captures nothing and the
+    // HasSubstr assertion always fails. The fix replaces CaptureStdout() with a NiceMock<RecorderMock> injected
+    // via SetLogRecorder(), which intercepts Log*() calls directly — independent of the logging backend.
+    // The operator<< logs in multiple separate calls (strings and integers), so we verify each part individually.
+    // See also: proxy_instance_identifier_test.cpp, service_element_type_test.cpp.
+    ::testing::NiceMock<score::mw::log::RecorderMock> recorder_mock{};
+    const score::mw::log::SlotHandle handle{0U};
+
+    ON_CALL(recorder_mock, IsLogEnabled(::testing::_, ::testing::_)).WillByDefault(::testing::Return(true));
+    ON_CALL(recorder_mock, StartRecord(::testing::_, ::testing::_))
+        .WillByDefault(::testing::Return(score::cpp::optional<score::mw::log::SlotHandle>{handle}));
+
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::HasSubstr("ProxyInstanceIdentifier:")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::HasSubstr("Application ID:")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogUint32(::testing::_, static_cast<std::uint32_t>(kDummyProcessIdentifier)))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::HasSubstr(". Proxy Instance Counter:")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogUint16(::testing::_, static_cast<std::uint16_t>(kDummyProxyInstanceCounter)))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::HasSubstr(". UniqueMethodIdentifier:")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::HasSubstr("MethodOrFieldId:")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogUint16(::testing::_, static_cast<std::uint16_t>(kDummyMethodOrFieldId)))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::HasSubstr(". MethodType:")))
+        .Times(::testing::AtLeast(1));
+    // to_string(MethodType::kMethod) returns the exact string "Method" — use StrEq to avoid
+    // accidentally matching ". UniqueMethodIdentifier:", "MethodOrFieldId:", or ". MethodType:"
+    // which all contain "Method" as a substring and would be consumed by HasSubstr("Method").
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::StrEq("Method")))
+        .Times(::testing::AtLeast(1));
+
+    score::mw::log::SetLogRecorder(&recorder_mock);
 
     // When streaming the ProxyMethodInstanceIdentifier to a log
     score::mw::log::LogFatal("test") << unit;
-    std::string output = testing::internal::GetCapturedStdout();
 
-    // Then the output should contain the expected string
-    EXPECT_THAT(output,
-                ::testing::HasSubstr("ProxyInstanceIdentifier: Application ID: 10 . Proxy Instance Counter: 15 "
-                                     ". UniqueMethodIdentifier: MethodOrFieldId: 20 . MethodType: Method"));
+    // Restore the default recorder
+    score::mw::log::SetLogRecorder(nullptr);
 }
 
 }  // namespace

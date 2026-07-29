@@ -14,6 +14,10 @@
 
 #include "score/mw/com/impl/service_element_type.h"
 
+#include "score/mw/log/logging.h"
+#include "score/mw/log/recorder_mock.h"
+#include "score/mw/log/slot_handle.h"
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -169,17 +173,42 @@ TEST(ServiceElementIdentifierStreamTest, OperatorStreamOutputsServiceElementData
     // Given a ServiceElementIdentifier
     const ServiceElementIdentifier service_element_identifier{"TestType", "TestElement", ServiceElementType::EVENT};
 
-    testing::internal::CaptureStdout();
+    // Fix for QNX: On QNX the mw::log framework cannot find a valid log mode configuration and falls back to
+    // EmptyRecorder (error: "Unsupported LogMode encountered in the RecorderFactory, using EmptyRecorder instead").
+    // EmptyRecorder discards all output, so testing::internal::CaptureStdout() captures nothing and the
+    // HasSubstr assertions always fail. The fix replaces CaptureStdout() with a NiceMock<RecorderMock> injected
+    // via SetLogRecorder(), which intercepts LogStringView() calls directly — independent of the logging backend.
+    // The operator<< logs in 6 separate LogStringView calls; we use StrEq to avoid substring conflicts
+    // (e.g. ", service element: " is a substring of ", service element type: ").
+    // See also: service_element_type_test.cpp, proxy_instance_identifier_test.cpp.
+    ::testing::NiceMock<score::mw::log::RecorderMock> recorder_mock{};
+    const score::mw::log::SlotHandle handle{0U};
+
+    ON_CALL(recorder_mock, IsLogEnabled(::testing::_, ::testing::_)).WillByDefault(::testing::Return(true));
+    ON_CALL(recorder_mock, StartRecord(::testing::_, ::testing::_))
+        .WillByDefault(::testing::Return(score::cpp::optional<score::mw::log::SlotHandle>{handle}));
+
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::StrEq("service type: ")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::StrEq("TestType")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::StrEq(", service element: ")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::StrEq("TestElement")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::StrEq(", service element type: ")))
+        .Times(::testing::AtLeast(1));
+    // ServiceElementType::EVENT is logged as the exact string "EVENT" by its operator<<
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::StrEq("EVENT")))
+        .Times(::testing::AtLeast(1));
+
+    score::mw::log::SetLogRecorder(&recorder_mock);
 
     // When streaming the ServiceElementIdentifier to a log
     score::mw::log::LogFatal("test") << service_element_identifier;
 
-    std::string output = testing::internal::GetCapturedStdout();
-
-    // Then the output should contain the formatted service type, service element name, and service element type
-    EXPECT_THAT(output, testing::HasSubstr("service type:  TestType"));
-    EXPECT_THAT(output, testing::HasSubstr("service element:  TestElement"));
-    EXPECT_THAT(output, testing::HasSubstr("service element type:  EVENT"));
+    // Restore the default recorder
+    score::mw::log::SetLogRecorder(nullptr);
 }
 
 }  // namespace
