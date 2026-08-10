@@ -20,6 +20,9 @@
 #include "score/analysis/tracing/generic_trace_library/mock/trace_library_mock.h"
 
 #include "score/mw/com/impl/tracing/service_element_tracing_data.h"
+#include "score/mw/log/logging.h"
+#include "score/mw/log/recorder_mock.h"
+#include "score/mw/log/slot_handle.h"
 #include <score/utility.hpp>
 
 #include <gtest/gtest.h>
@@ -923,25 +926,29 @@ TEST_F(TraceDoneCallbackFixture,
     // and tracing should no longer be active
     EXPECT_FALSE(tracing_runtime_.IsTracingSlotUsed(trace_context_id_val));
 
-    // capture stdout output during trace done callback call.
-    testing::internal::CaptureStdout();
+    // Fix for QNX: CaptureStdout() captures nothing because mw::log falls back to EmptyRecorder.
+    // Use RecorderMock to intercept LogStringView() calls directly.
+    // The warning message is logged in multiple separate LogStringView calls.
+    // A catch-all EXPECT_CALL handles all other calls; specific ones verify the key message parts.
+    ::testing::NiceMock<score::mw::log::RecorderMock> recorder_mock{};
+    const score::mw::log::SlotHandle handle{0U};
+    ON_CALL(recorder_mock, IsLogEnabled(::testing::_, ::testing::_)).WillByDefault(::testing::Return(true));
+    ON_CALL(recorder_mock, StartRecord(::testing::_, ::testing::_))
+        .WillByDefault(::testing::Return(score::cpp::optional<score::mw::log::SlotHandle>{handle}));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::_)).Times(::testing::AnyNumber());
+    EXPECT_CALL(recorder_mock,
+                LogStringView(::testing::_, ::testing::HasSubstr("Lola TracingRuntime: TraceDoneCB with TraceContextId")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock,
+                LogStringView(::testing::_, ::testing::HasSubstr("was not pending but has been called anyway")))
+        .Times(::testing::AtLeast(1));
+    score::mw::log::SetLogRecorder(&recorder_mock);
 
     // Then when calling the trace done callback with the provided TraceContextId again
     trace_done_callback_(trace_context_id_val);
 
-    // stop capture and get captured data.
-    std::string log_output = testing::internal::GetCapturedStdout();
-    const char log_warn_snippet[] = "log warn";
-
-    std::stringstream text_snippet{};
-    text_snippet << "Lola TracingRuntime: TraceDoneCB with TraceContextId " << trace_context_id_val
-                 << " was not pending but has been called anyway. This is expected to occur if the trace done "
-                    "callback is called after an event/field has been stop offered. Ignoring callback.";
-
-    // Then a warning message should be logged (mw::log)
-    auto first_offset = log_output.find(log_warn_snippet);
-    EXPECT_TRUE(first_offset != log_output.npos);
-    EXPECT_TRUE(log_output.find(text_snippet.str(), first_offset) != log_output.npos);
+    // Restore the default recorder
+    score::mw::log::SetLogRecorder(nullptr);
 }
 
 TEST_F(TraceDoneCallbackFixture, ServiceElementTracingIsUnchangedAfterCallingTraceDoneCallbackWithIncorrectContextId)
@@ -970,26 +977,30 @@ TEST_F(TraceDoneCallbackFixture, ServiceElementTracingIsUnchangedAfterCallingTra
     // and tracing should be marked as active
     EXPECT_TRUE(tracing_runtime_.IsTracingSlotUsed(trace_context_id_val));
 
-    // capture stdout output during trace done callback call.
-    testing::internal::CaptureStdout();
+    // Fix for QNX: CaptureStdout() captures nothing because mw::log falls back to EmptyRecorder.
+    // Use RecorderMock to intercept LogStringView() calls directly.
+    // The warning message is logged in multiple separate LogStringView calls.
+    // A catch-all EXPECT_CALL handles all other calls; specific ones verify the key message parts.
+    ::testing::NiceMock<score::mw::log::RecorderMock> recorder_mock{};
+    const score::mw::log::SlotHandle handle{0U};
+    ON_CALL(recorder_mock, IsLogEnabled(::testing::_, ::testing::_)).WillByDefault(::testing::Return(true));
+    ON_CALL(recorder_mock, StartRecord(::testing::_, ::testing::_))
+        .WillByDefault(::testing::Return(score::cpp::optional<score::mw::log::SlotHandle>{handle}));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::_)).Times(::testing::AnyNumber());
+    EXPECT_CALL(recorder_mock,
+                LogStringView(::testing::_, ::testing::HasSubstr("Lola TracingRuntime: TraceDoneCB with TraceContextId")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock,
+                LogStringView(::testing::_, ::testing::HasSubstr("was not pending but has been called anyway")))
+        .Times(::testing::AtLeast(1));
+    score::mw::log::SetLogRecorder(&recorder_mock);
 
     // Then when calling the trace done callback with a different TraceContextId
     analysis::tracing::TraceContextId different_trace_context_id = trace_context_id_val + 1U;
     trace_done_callback_(different_trace_context_id);
 
-    // stop capture and get captured data.
-    std::string log_output = testing::internal::GetCapturedStdout();
-    const char log_warn_snippet[] = "log warn";
-
-    std::stringstream text_snippet{};
-    text_snippet << "Lola TracingRuntime: TraceDoneCB with TraceContextId " << different_trace_context_id
-                 << " was not pending but has been called anyway. This is expected to occur if the trace done "
-                    "callback is called after an event/field has been stop offered. Ignoring callback.";
-
-    // Then a warning message should be logged (mw::log)
-    auto first_offset = log_output.find(log_warn_snippet);
-    EXPECT_TRUE(first_offset != log_output.npos);
-    EXPECT_TRUE(log_output.find(text_snippet.str(), first_offset) != log_output.npos);
+    // Restore the default recorder
+    score::mw::log::SetLogRecorder(nullptr);
 
     // and tracing should still be active
     EXPECT_TRUE(tracing_runtime_.IsTracingSlotUsed(trace_context_id_val));

@@ -14,6 +14,10 @@
 
 #include "score/mw/com/impl/configuration/global_configuration.h"
 
+#include "score/mw/log/logging.h"
+#include "score/mw/log/recorder_mock.h"
+#include "score/mw/log/slot_handle.h"
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -105,14 +109,38 @@ TEST(SkeletonInstanceIdentifierHashTest, OperatorStreamOutputsExpectedString)
 {
     // Given a SkeletonInstanceIdentifier
     const SkeletonInstanceIdentifier unit{kDummyServiceId, kDummyInstanceId};
-    testing::internal::CaptureStdout();
+
+    // Fix for QNX: On QNX the mw::log framework cannot find a valid log mode configuration and falls back to
+    // EmptyRecorder (error: "Unsupported LogMode encountered in the RecorderFactory, using EmptyRecorder instead").
+    // EmptyRecorder discards all output, so testing::internal::CaptureStdout() captures nothing and the
+    // HasSubstr assertion always fails. The fix replaces CaptureStdout() with a NiceMock<RecorderMock> injected
+    // via SetLogRecorder(), which intercepts Log*() calls directly — independent of the logging backend.
+    // The operator<< logs in 4 separate calls: LogStringView("Service ID:"), LogUint16(service_id),
+    // LogStringView(". Instance ID:"), LogUint16(instance_id).
+    // See also: proxy_instance_identifier_test.cpp, service_element_type_test.cpp.
+    ::testing::NiceMock<score::mw::log::RecorderMock> recorder_mock{};
+    const score::mw::log::SlotHandle handle{0U};
+
+    ON_CALL(recorder_mock, IsLogEnabled(::testing::_, ::testing::_)).WillByDefault(::testing::Return(true));
+    ON_CALL(recorder_mock, StartRecord(::testing::_, ::testing::_))
+        .WillByDefault(::testing::Return(score::cpp::optional<score::mw::log::SlotHandle>{handle}));
+
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::HasSubstr("Service ID:")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogUint16(::testing::_, static_cast<std::uint16_t>(kDummyServiceId)))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::HasSubstr(". Instance ID:")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogUint16(::testing::_, static_cast<std::uint16_t>(kDummyInstanceId)))
+        .Times(::testing::AtLeast(1));
+
+    score::mw::log::SetLogRecorder(&recorder_mock);
 
     // When streaming the SkeletonInstanceIdentifier to a log
     score::mw::log::LogFatal("test") << unit;
-    std::string output = testing::internal::GetCapturedStdout();
 
-    // Then the output should contain the expected string
-    EXPECT_THAT(output, ::testing::HasSubstr("Service ID: 10 . Instance ID: 15"));
+    // Restore the default recorder
+    score::mw::log::SetLogRecorder(nullptr);
 }
 
 }  // namespace

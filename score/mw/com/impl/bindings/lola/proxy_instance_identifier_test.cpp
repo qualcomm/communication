@@ -14,6 +14,10 @@
 
 #include "score/mw/com/impl/configuration/global_configuration.h"
 
+#include "score/mw/log/logging.h"
+#include "score/mw/log/recorder_mock.h"
+#include "score/mw/log/slot_handle.h"
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -105,14 +109,40 @@ TEST(ProxyInstanceIdentifierTest, OperatorStreamOutputsExpectedString)
 {
     // Given a ProxyInstanceIdentifier
     const ProxyInstanceIdentifier unit{kDummyProcessIdentifier, kDummyProxyInstanceCounter};
-    testing::internal::CaptureStdout();
+
+    // Fix for QNX: On QNX the mw::log framework cannot find a valid log mode configuration and falls back to
+    // EmptyRecorder (error: "Unsupported LogMode encountered in the RecorderFactory, using EmptyRecorder instead").
+    // EmptyRecorder discards all output, so testing::internal::CaptureStdout() captures nothing and the
+    // HasSubstr assertion always fails. The fix replaces CaptureStdout() with a NiceMock<RecorderMock> injected
+    // via SetLogRecorder(), which intercepts LogStringView() calls directly — independent of the logging backend.
+    // See also: service_element_type_test.cpp, generic_proxy_test.cpp.
+    ::testing::NiceMock<score::mw::log::RecorderMock> recorder_mock{};
+    const score::mw::log::SlotHandle handle{0U};
+
+    ON_CALL(recorder_mock, IsLogEnabled(::testing::_, ::testing::_)).WillByDefault(::testing::Return(true));
+    ON_CALL(recorder_mock, StartRecord(::testing::_, ::testing::_))
+        .WillByDefault(::testing::Return(score::cpp::optional<score::mw::log::SlotHandle>{handle}));
+
+    // The operator<< implementation logs in 4 separate calls:
+    //   LogStringView("Application ID:"), LogUint32(application_id),
+    //   LogStringView(". Proxy Instance Counter:"), LogUint16(proxy_instance_counter)
+    // So we verify each part individually.
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::HasSubstr("Application ID:")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogUint32(::testing::_, static_cast<std::uint32_t>(kDummyProcessIdentifier)))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogStringView(::testing::_, ::testing::HasSubstr(". Proxy Instance Counter:")))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(recorder_mock, LogUint16(::testing::_, static_cast<std::uint16_t>(kDummyProxyInstanceCounter)))
+        .Times(::testing::AtLeast(1));
+
+    score::mw::log::SetLogRecorder(&recorder_mock);
 
     // When streaming the ProxyInstanceIdentifier to a log
     score::mw::log::LogFatal("test") << unit;
-    std::string output = testing::internal::GetCapturedStdout();
 
-    // Then the output should contain the expected string
-    EXPECT_THAT(output, ::testing::HasSubstr("Application ID: 10 . Proxy Instance Counter: 15"));
+    // Restore the default recorder
+    score::mw::log::SetLogRecorder(nullptr);
 }
 
 }  // namespace

@@ -17,6 +17,10 @@
 
 #include "score/mw/com/impl/generic_proxy.h"
 
+#include "score/mw/log/logging.h"
+#include "score/mw/log/recorder_mock.h"
+#include "score/mw/log/slot_handle.h"
+
 #include "score/mw/com/impl/bindings/mock_binding/generic_proxy_event.h"
 #include "score/mw/com/impl/bindings/mock_binding/proxy.h"
 #include "score/mw/com/impl/configuration/lola_service_id.h"
@@ -416,22 +420,32 @@ TEST_F(GenericProxyFixture, GenericProxyWillLogErrorMessageForEventsProvidedInCo
     ON_CALL(*proxy_binding_mock_, IsEventProvided(std::string_view{kEventName2})).WillByDefault(Return(false));
     ON_CALL(*proxy_binding_mock_, IsEventProvided(std::string_view{kEventName3})).WillByDefault(Return(true));
 
-    // capture stdout output during Parse() call.
-    testing::internal::CaptureStdout();
+    // Fix for QNX: On QNX the mw::log framework cannot find a valid log mode configuration and falls back to
+    // EmptyRecorder (error: "Unsupported LogMode encountered in the RecorderFactory, using EmptyRecorder instead").
+    // EmptyRecorder discards all output, so testing::internal::CaptureStdout() captures nothing and the
+    // log_output.find() assertions always fail. The fix replaces CaptureStdout() with a NiceMock<RecorderMock>
+    // injected via SetLogRecorder(), which intercepts LogStringView() calls directly — independent of the
+    // logging backend. See also: service_element_type_test.cpp, find_service_handle_test.cpp.
+    ::testing::NiceMock<score::mw::log::RecorderMock> recorder_mock{};
+    const score::mw::log::SlotHandle handle{0U};
+
+    ON_CALL(recorder_mock, IsLogEnabled(::testing::_, ::testing::_)).WillByDefault(::testing::Return(true));
+    ON_CALL(recorder_mock, StartRecord(::testing::_, ::testing::_))
+        .WillByDefault(::testing::Return(score::cpp::optional<score::mw::log::SlotHandle>{handle}));
+
+    EXPECT_CALL(recorder_mock,
+                LogStringView(::testing::_,
+                              ::testing::HasSubstr("GenericProxy: Event provided in the ServiceTypeDeployment could "
+                                                   "not be found in shared memory.")))
+        .Times(::testing::AtLeast(1));
+
+    score::mw::log::SetLogRecorder(&recorder_mock);
 
     // When constructing the generic proxy
     auto generic_proxy_result = GenericProxy::Create(*handle_);
 
-    // stop capture and get captured data.
-    std::string log_output = testing::internal::GetCapturedStdout();
-
-    // Then the an error message should be logged
-    const char text_snippet[] =
-        "log error verbose 1 GenericProxy: Event provided in the ServiceTypeDeployment could not be found in shared "
-        "memory. This is likely a configuration error.";
-    auto text_location = log_output.find(text_snippet);
-    EXPECT_TRUE(text_location != log_output.npos);
-    EXPECT_TRUE(log_output.find(text_snippet, text_location) != log_output.npos);
+    // Restore the default recorder
+    score::mw::log::SetLogRecorder(nullptr);
 }
 
 using GenericProxyDeathTest = GenericProxyFixture;
